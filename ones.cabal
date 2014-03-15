@@ -1,4 +1,4 @@
-name:                opentest
+name:                ones
 version:             0.1.0.0
 -- synopsis:            
 -- description:         
@@ -12,8 +12,8 @@ maintainer:          bluemangroupie@gmail.com
 build-type:          Simple
 cabal-version:       >=1.8
 
-executable opentest
-  build-depends:       base ==4.6.*
+executable ones
+  build-depends:       base ==4.6.*, OpenGL, GLUT, OpenGLRaw, random, lens, gloss
   hs-source-dirs:      src
   main-is: Main.hs
 
@@ -21,14 +21,3 @@ executable opentest
 -- unknown symbol `dominionzm0zi1zi0zi3_DominionziCardsziIntrigue_intrigueCards_closure'
 -- ghc: unable to load package `dominion-0.1.0.3'
 -- It means that you haven't added a module to your exposed-modules list.
-
-Test-Suite test-opentest
-  type:       exitcode-stdio-1.0
-  build-depends:       base ==4.6.*, hspec, opentest
-  hs-source-dirs:      spec, src
-  main-is:             Main.hs
-
-library
-  build-depends:       base ==4.6.*
-  exposed-modules:     Opentest
-  hs-source-dirs:      src

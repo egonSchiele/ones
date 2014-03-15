@@ -1,6 +1,6 @@
 all:
-	cabal install && .hsenv/cabal/bin/opentest
+	cabal install && .hsenv/cabal/bin/ones
 repo:
-	new_bitbucket_repo opentest
+	new_bitbucket_repo ones
 spec:
-	cabal install && .hsenv/cabal/bin/opentest-spec
+	cabal install && .hsenv/cabal/bin/ones-spec
