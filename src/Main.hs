@@ -81,16 +81,21 @@ handleInput (EventKey (Char 'a') Up _ (x, y)) (board, Play) = do
 handleInput (EventKey (SpecialKey KeyLeft) Up _ (x, y)) (board, Play) = return (newBoard, Play)
   where
     newBoard = foldl moveLeft board [(x, y) | x <- [0..3], y <- [0..3], Just tile <- [board ! (x, y)]]
-    moveLeft board (0, _) = board
-    moveLeft board (x, y) = case find (\x_ -> isJust $ (board !! x_) !! y) [x-1, x-2 .. 0] of
-                              Nothing -> set x y Nothing $ set 0 y (board ! (x, y)) board
-                              Just takenX -> if (board ! (takenX, y)) == (board ! (x, y))
-                                               then set x y Nothing $ set takenX y (double $ board ! (x, y)) board
-                                               else if takenX == x - 1
-                                                 then board
-                                                 else set x y Nothing $ set (takenX + 1) y (board ! (x, y)) board
 
 handleInput _ board = return board
+
+moveLeft :: Board -> (Int, Int) -> Board
+moveLeft board (0, _) = board
+moveLeft board (x, y) = moveLeft_ board (x, y) $ find (\x_ -> isJust $ (board ! (x_, y))) [x-1, x-2 .. 0]
+
+moveLeft_ board (x, y) Nothing = set x y Nothing $ set 0 y (board ! (x, y)) board
+moveLeft_ board (x, y) (Just takenX)
+  -- they are both the same, combine
+  | (board ! (takenX, y)) == (board ! (x, y)) = set x y Nothing $ set takenX y (double $ board ! (x, y)) board
+  -- it's just the piece to the left of the one we're checking, so we ain't
+  -- going nowhere
+  | takenX == x - 1 = board
+  | otherwise = set x y Nothing $ set (takenX + 1) y (board ! (x, y)) board
 
 set x y val board = ix x . ix y .~ val $ board
 --------------------------------------------------------------------------------
