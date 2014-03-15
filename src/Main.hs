@@ -86,16 +86,16 @@ handleInput _ board = return board
 
 moveLeft :: Board -> (Int, Int) -> Board
 moveLeft board (0, _) = board
-moveLeft board (x, y) = moveLeft_ board (x, y) $ find (\x_ -> isJust $ (board ! (x_, y))) [x-1, x-2 .. 0]
+moveLeft board (x, y) = move board (x, y) (newX, y)
+  where newX = maybe 0 (+1) $ find (\x_ -> isJust $ (board ! (x_, y))) [x-1, x-2 .. 0]
 
-moveLeft_ board (x, y) Nothing = set x y Nothing $ set 0 y (board ! (x, y)) board
-moveLeft_ board (x, y) (Just takenX)
+move board (x, y) (newX, newY)
   -- they are both the same, combine
-  | (board ! (takenX, y)) == (board ! (x, y)) = set x y Nothing $ set takenX y (double $ board ! (x, y)) board
+  -- | (board ! (newX, newY)) == (board ! (x, y)) = set x y Nothing $ set newX newY (double $ board ! (x, y)) board
   -- it's just the piece to the left of the one we're checking, so we ain't
   -- going nowhere
-  | takenX == x - 1 = board
-  | otherwise = set x y Nothing $ set (takenX + 1) y (board ! (x, y)) board
+  | newX == x = board
+  | otherwise = set x y Nothing $ set newX (newY) (board ! (x, y)) board
 
 set x y val board = ix x . ix y .~ val $ board
 --------------------------------------------------------------------------------
