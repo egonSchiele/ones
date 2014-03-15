@@ -13,6 +13,9 @@ type Tile = Int
 type Board = [[Maybe Tile]]
 data Stage = Play | Animation deriving (Show, Eq)
 
+(!) :: Board -> (Int, Int) -> Maybe Tile
+board ! (x, y) = (board !! x) !! y
+
 tileWidth = 100
 tileHeight = 100
 
@@ -25,7 +28,7 @@ main = do
   playIO
     (InWindow "ones" (500, 500) (1, 1))
     azure
-    5
+    30
     (initialBoard, Play)
     drawBoard
     handleInput
@@ -47,7 +50,7 @@ addRandomTile board = do
   let plays = [ (ix x . ix y .~ Just 2) board
               | x <- [0..3]
               , y <- [0..3]
-              , Nothing <- [ (board !! x) !! y ]
+              , Nothing <- [board ! (x, y)]
               ]
     
   newBoard <- (plays !!) <$> randomRIO (0, length plays - 1)
@@ -64,8 +67,11 @@ drawBoard (board, Play) = return tiles
           (scale (0.5) (0.5) $ color black $ translate (50.0) (50.0) $ text (show tile))
     | x <- [0..3]
     , y <- [0..3]
-    , Just tile <- [ (board !! x) !! y ]
+    , Just tile <- [board ! (x, y)]
     ]
+
+double Nothing = Nothing
+double (Just x) = Just $ x*2
 
 handleInput :: Event -> (Board, Stage) -> IO (Board, Stage)
 handleInput (EventKey (Char 'a') Up _ (x, y)) (board, Play) = do
@@ -74,13 +80,15 @@ handleInput (EventKey (Char 'a') Up _ (x, y)) (board, Play) = do
 
 handleInput (EventKey (SpecialKey KeyLeft) Up _ (x, y)) (board, Play) = return (newBoard, Play)
   where
-    newBoard = foldl moveLeft board [(x, y) | x <- [0..3], y <- [0..3], Just tile <- [ (board !! x) !! y ]]
+    newBoard = foldl moveLeft board [(x, y) | x <- [0..3], y <- [0..3], Just tile <- [board ! (x, y)]]
     moveLeft board (0, _) = board
     moveLeft board (x, y) = case find (\x_ -> isJust $ (board !! x_) !! y) [x-1, x-2 .. 0] of
-                              Nothing -> set x y Nothing $ set 0 y ((board !! x) !! y) board
-                              Just takenX -> if takenX == x - 1
-                                               then board
-                                               else set x y Nothing $ set (takenX + 1) y ((board !! x) !! y) board
+                              Nothing -> set x y Nothing $ set 0 y (board ! (x, y)) board
+                              Just takenX -> if (board ! (takenX, y)) == (board ! (x, y))
+                                               then set x y Nothing $ set takenX y (double $ board ! (x, y)) board
+                                               else if takenX == x - 1
+                                                 then board
+                                                 else set x y Nothing $ set (takenX + 1) y (board ! (x, y)) board
 
 handleInput _ board = return board
 
