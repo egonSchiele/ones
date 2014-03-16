@@ -13,7 +13,7 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 executable ones
-  build-depends:       base ==4.6.*, OpenGL, GLUT, OpenGLRaw, random, lens, gloss
+  build-depends:       base ==4.6.*, OpenGL, GLUT, OpenGLRaw, random, lens, gloss, StateVar
   hs-source-dirs:      src
   main-is: Main.hs
 

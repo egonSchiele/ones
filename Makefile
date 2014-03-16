@@ -1,5 +1,5 @@
 all:
-	cabal install && .hsenv/cabal/bin/ones
+	cabal install && cabal run
 repo:
 	new_bitbucket_repo ones
 spec:

@@ -9,6 +9,9 @@ import System.Random
 import Data.List
 import Data.Maybe
 import qualified Debug.Trace as D
+import Graphics.Rendering.OpenGL (multisample, Capability(..))
+import Graphics.Rendering.OpenGL.GL.StateVar
+import Graphics.UI.GLUT (initialDisplayMode, DisplayMode(..))
 
 type Tile = Int
 type Board = [[Maybe Tile]]
@@ -23,13 +26,32 @@ tileHeight = 100
 initialBoard :: Board
 initialBoard = replicate 4 (replicate 4 Nothing)
 
+(***) :: Int -> Int -> Int
+a *** b = floor $ (fromIntegral a) ** (fromIntegral b)
+
+convert :: Char -> Int
+convert 'a' = 10
+convert 'b' = 11
+convert 'c' = 12
+convert 'd' = 13
+convert 'e' = 14
+convert 'f' = 15
+convert char = read [char]
+
+hexToInt :: String -> Int
+hexToInt (x:[]) = convert x
+hexToInt str@(x:xs) = 16 *** (length str - 1) * (convert x) + hexToInt xs
+
+makeColorHex (r1:r2:g1:g2:b1:b2:[]) = makeColor8 (hexToInt [r1, r2]) (hexToInt [g1, g2]) (hexToInt [b1, b2]) 255
+
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
+  initialDisplayMode $~ (Multisampling:) -- supposed to anti-alias, doesn't work very well
   startingBoard <- return initialBoard >>= addRandomTile >>= addRandomTile
   playIO
     (InWindow "ones" (500, 500) (1, 1))
-    azure
+    (makeColorHex "bbada0")
     30
     (startingBoard, Play)
     drawBoard
@@ -58,14 +80,14 @@ addRandomTile board = do
   newBoard <- (plays !!) <$> randomRIO (0, length plays - 1)
   return newBoard
 
-tileColor (Just 2) = white
-tileColor (Just 4) = yellow
-tileColor (Just 8) = orange
-tileColor (Just 16) = red
-tileColor (Just 32) = magenta
-tileColor (Just 64) = violet
-tileColor (Just 128) = blue
-tileColor (Just 256) = green
+tileColor 2 = makeColorHex "eee4da"
+tileColor 4 = makeColorHex "ede0c8"
+tileColor 8 = makeColorHex "f2b179"
+tileColor 16 = makeColorHex "f59563"
+tileColor 32 = makeColorHex "f67c5f"
+tileColor 64 = makeColorHex "f65e3b"
+tileColor 128 = makeColorHex "edcf72"
+tileColor 256 = makeColorHex "edcc61"
 tileColor _ = white
 
 --------------------------------------------------------------------------------
@@ -75,7 +97,7 @@ drawBoard (board, Play) = return tiles
   tiles = mconcat
     [ translate (fromIntegral $ (x - 2) * tileWidth)
                 (fromIntegral $ (y - 2) * tileHeight) $ 
-        (color (tileColor (Just tile)) $ box tileWidth tileHeight) <>
+        (color (tileColor tile) $ box tileWidth tileHeight) <>
           (scale (0.5) (0.5) $ color black $ translate (50.0) (50.0) $ text (show tile))
     | x <- [0..3]
     , y <- [0..3]
