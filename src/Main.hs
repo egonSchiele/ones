@@ -26,11 +26,12 @@ initialBoard = replicate 4 (replicate 4 Nothing)
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
+  startingBoard <- return initialBoard >>= addRandomTile >>= addRandomTile
   playIO
     (InWindow "ones" (500, 500) (1, 1))
     azure
     30
-    (initialBoard, Play)
+    (startingBoard, Play)
     drawBoard
     handleInput
     stepGame
@@ -89,21 +90,25 @@ handleInput (EventKey (Char 'a') Up _ (x, y)) (board, Play) = do
     newBoard <- addRandomTile board
     return $ (newBoard, Play)
 
-handleInput (EventKey (SpecialKey KeyLeft) Up _ (x, y)) (board, Play) = return (newBoard, Play)
-  where
-    newBoard = foldl moveLeft board [(x, y) | x <- [1..3], y <- [0..3], Just tile <- [board ! (x, y)]]
+handleInput (EventKey (SpecialKey KeyLeft) Up _ (x, y)) (board, Play) = do
+    let newBoard = foldl moveLeft board [(x, y) | x <- [1..3], y <- [0..3], Just tile <- [board ! (x, y)]]
+    newBoard2 <- addRandomTile newBoard
+    return (newBoard2, Play)
 
-handleInput (EventKey (SpecialKey KeyRight) Up _ (x, y)) (board, Play) = return (newBoard, Play)
-  where
-    newBoard = foldl moveRight board [(x, y) | x <- [2, 1, 0], y <- [0..3], Just tile <- [board ! (x, y)]]
+handleInput (EventKey (SpecialKey KeyRight) Up _ (x, y)) (board, Play) = do
+    let newBoard = foldl moveRight board [(x, y) | x <- [2, 1, 0], y <- [0..3], Just tile <- [board ! (x, y)]]
+    newBoard2 <- addRandomTile newBoard
+    return (newBoard2, Play)
 
-handleInput (EventKey (SpecialKey KeyUp) Up _ (x, y)) (board, Play) = return (newBoard, Play)
-  where
-    newBoard = foldl moveUp board [(x, y) | x <- [0..3], y <- [2, 1, 0], Just tile <- [board ! (x, y)]]
+handleInput (EventKey (SpecialKey KeyUp) Up _ (x, y)) (board, Play) = do
+    let newBoard = foldl moveUp board [(x, y) | x <- [0..3], y <- [2, 1, 0], Just tile <- [board ! (x, y)]]
+    newBoard2 <- addRandomTile newBoard
+    return (newBoard2, Play)
 
-handleInput (EventKey (SpecialKey KeyDown) Up _ (x, y)) (board, Play) = return (newBoard, Play)
-  where
-    newBoard = foldl moveDown board [(x, y) | x <- [0..3], y <- [1..3], Just tile <- [board ! (x, y)]]
+handleInput (EventKey (SpecialKey KeyDown) Up _ (x, y)) (board, Play) = do
+    let newBoard = foldl moveDown board [(x, y) | x <- [0..3], y <- [1..3], Just tile <- [board ! (x, y)]]
+    newBoard2 <- addRandomTile newBoard
+    return (newBoard2, Play)
 
 handleInput _ board = return board
 
