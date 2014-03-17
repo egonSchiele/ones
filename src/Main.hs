@@ -183,7 +183,7 @@ shiftRow :: Row -> Row
 shiftRow = take 4 . (++ repeat (Tile Nothing 0 0 Nothing 0 0 1.0)) . concatMap f . groupOn _value . filter (isJust . _value)
   where f (x : y : xs) | (x ^. value) == (y ^. value) = ((set scaleF 1.5 $ set newValue ((*2) <$> (x ^. value)) x) : (set newValue Nothing y)  : xs); f r = r
 
-speed = 5
+speed = 10
 
 addX tile
     | tile ^. tileX < tile ^. newX = over tileX (+speed) tile
