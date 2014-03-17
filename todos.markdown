@@ -1,0 +1,4 @@
+- animation - SORTA DONE
+- score
+- instructions
+- handle win/lose
