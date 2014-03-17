@@ -1,7 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
 import Control.Applicative
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Concurrent.MVar (MVar, newMVar, tryTakeMVar, putMVar, newEmptyMVar)
-import Control.Lens (ix, (.~))
+import Control.Lens (ix, (.~), over, makeLenses, (^.), set)
 import Control.Monad
 import Data.Monoid ((<>), mconcat, mempty)
 import Graphics.Gloss.Interface.IO.Game
@@ -13,10 +14,16 @@ import Graphics.Rendering.OpenGL (multisample, Capability(..))
 import Graphics.Rendering.OpenGL.GL.StateVar
 import Graphics.UI.GLUT (initialDisplayMode, DisplayMode(..))
 
-type Tile  = Int
-type Row   = [Maybe Tile]
+data Tile = Tile {
+              _value :: Maybe Int,
+              _tileX :: Int,
+              _tileY :: Int
+              } deriving (Show, Eq)
+
+makeLenses ''Tile
+
+type Row   = [Tile]
 type Board = [Row]
-data Stage = Play | Animation deriving (Show, Eq)
 
 (//) :: Int -> Int -> Int
 a // b = floor $ (fromIntegral a) / (fromIntegral b)
@@ -24,7 +31,7 @@ a // b = floor $ (fromIntegral a) / (fromIntegral b)
 (***) :: Int -> Int -> Int
 a *** b = floor $ (fromIntegral a) ** (fromIntegral b)
 
-(!) :: Board -> (Int, Int) -> Maybe Tile
+(!) :: Board -> (Int, Int) -> Tile
 board ! (x, y) = (board !! x) !! y
 
 tileWidth  = 107
@@ -33,8 +40,12 @@ space      = 14
 boardWidth = tileWidth * 4 + space * 5
 
 initialBoard :: Board
-initialBoard = replicate 4 (replicate 4 Nothing)
+initialBoard = setPositions $ replicate 4 $ replicate 4 (Tile Nothing 0 0)
 
+setPositions :: Board -> Board
+setPositions board = for [0..3] $ \x ->
+                        for [0..3] $ \y -> set tileX ((x - 2) * (tileWidth + space)  + (space // 2)) $
+                                           set tileY ((y - 2) * (tileHeight + space) + (space // 2)) (board ! (x, y))
 convert :: Char -> Int
 convert 'a' = 10
 convert 'b' = 11
@@ -63,7 +74,7 @@ main = do
     (InWindow "ones" (boardWidth, boardWidth) (1, 1))
     (makeColorHex "bbada0")
     30
-    (startingBoard, Play)
+    startingBoard
     drawBoard
     on
     stepGame
@@ -81,43 +92,43 @@ box w_ h_ = polygon [p1, p2, p3, p4]
 addRandomTile :: Board -> IO Board
 addRandomTile board = do
   -- Choose a random move
-  let plays = [ (ix x . ix y .~ Just 2) board
+  let plays = [ set (ix x . ix y . value) (Just 2) board
               | x <- [0..3]
               , y <- [0..3]
-              , Nothing <- [board ! (x, y)]
+              , Tile Nothing _ _ <- [board ! (x, y)]
               ]
     
-  newBoard <- (plays !!) <$> randomRIO (0, length plays - 1)
-  return newBoard
+  (plays !!) <$> randomRIO (0, length plays - 1)
 
-bgColor Nothing     = makeColor8 204 192 179 255
-bgColor (Just 2)    = makeColorHex "eee4da"
-bgColor (Just 4)    = makeColorHex "ede0c8"
-bgColor (Just 8)    = makeColorHex "f2b179"
-bgColor (Just 16)   = makeColorHex "f59563"
-bgColor (Just 32)   = makeColorHex "f67c5f"
-bgColor (Just 64)   = makeColorHex "f65e3b"
-bgColor (Just 128)  = makeColorHex "edcf72"
-bgColor (Just 256)  = makeColorHex "edcc61"
-bgColor (Just 512)  = makeColorHex "edc850"
-bgColor (Just 1024) = makeColorHex "edc53f"
-bgColor (Just 2048) = makeColorHex "edc22e"
-bgColor _           = white
+bgColor tile
+  | isNothing $ tile ^. value          = makeColor8 204 192 179 255
+  | (fromJust $ tile ^. value) == 2    = makeColorHex "eee4da"
+  | (fromJust $ tile ^. value) == 4    = makeColorHex "ede0c8"
+  | (fromJust $ tile ^. value) == 8    = makeColorHex "f2b179"
+  | (fromJust $ tile ^. value) == 16   = makeColorHex "f59563" 
+  | (fromJust $ tile ^. value) == 32   = makeColorHex "f67c5f" 
+  | (fromJust $ tile ^. value) == 64   = makeColorHex "f65e3b" 
+  | (fromJust $ tile ^. value) == 128  = makeColorHex "edcf72"
+  | (fromJust $ tile ^. value) == 256  = makeColorHex "edcc61"
+  | (fromJust $ tile ^. value) == 512  = makeColorHex "edc850"
+  | (fromJust $ tile ^. value) == 1024 = makeColorHex "edc53f"
+  | (fromJust $ tile ^. value) == 2048 = makeColorHex "edc22e"
 
-fontColor (Just x)
-  | x == 2 || x == 4 = makeColorHex "776e65"
-  | otherwise        = makeColorHex "f9f6f2"
+fontColor tileValue
+  | tileValue == 2 || tileValue == 4 = makeColorHex "776e65"
+  | otherwise = makeColorHex "f9f6f2"
 
-textFor Nothing = text ""
-textFor caption@(Just x) = color (fontColor caption) $ text (show x)
+textFor tile = case tile ^. value of
+                 Nothing -> text ""
+                 Just tileValue -> color (fontColor tileValue) $ text . show $ tileValue
 
 --------------------------------------------------------------------------------
-drawBoard :: (Board, Stage) -> IO Picture
-drawBoard (board, Play) = return tiles
+drawBoard :: Board -> IO Picture
+drawBoard board = return tiles
  where
   tiles = mconcat
-    [ translate (fromIntegral $ (x - 2) * (tileWidth + space)  + (space // 2))
-                (fromIntegral $ (y - 2) * (tileHeight + space) + (space // 2)) $ 
+    [ translate (fromIntegral $ tile ^. tileX)
+                (fromIntegral $ tile ^. tileY) $
         (color (bgColor tile) $ box tileWidth tileHeight) <>
           (scale (0.5) (0.5) $ translate (75.0) (50.0) $ textFor tile)
     | x <- [0..3]
@@ -125,34 +136,27 @@ drawBoard (board, Play) = return tiles
     , tile <- [board ! (x, y)]
     ]
 
-double Nothing = Nothing
-double (Just x) = Just $ x*2
+on (EventKey (SpecialKey KeyLeft) Down _ _) board = do
+    liftM setPositions $ addRandomTile . transpose . map shiftRow . transpose $ board
 
-on (EventKey (SpecialKey KeyLeft) Down _ _) (board, Play) = do
-    newBoard <- addRandomTile . transpose . map shiftRow . transpose $ board
-    return (newBoard, Play)
+on (EventKey (SpecialKey KeyRight) Down _ _) board = do
+    liftM setPositions $ addRandomTile . transpose . map (reverse . shiftRow . reverse) . transpose $ board
 
-on (EventKey (SpecialKey KeyRight) Down _ _) (board, Play) = do
-    newBoard <- addRandomTile . transpose . map (reverse . shiftRow . reverse) . transpose $ board
-    return (newBoard, Play)
+on (EventKey (SpecialKey KeyUp) Down _ _) board = do
+    liftM setPositions $ addRandomTile . map (reverse . shiftRow . reverse) $ board
 
-on (EventKey (SpecialKey KeyUp) Down _ _) (board, Play) = do
-    newBoard <- addRandomTile . map (reverse . shiftRow . reverse) $ board
-    return (newBoard, Play)
-
-on (EventKey (SpecialKey KeyDown) Down _ _) (board, Play) = do
-    newBoard <- addRandomTile . map shiftRow $ board
-    return (newBoard, Play)
+on (EventKey (SpecialKey KeyDown) Down _ _) board = do
+    liftM setPositions $ addRandomTile . map shiftRow $ board
 
 on _ board = return board
 
 for = flip map
+groupOn func = groupBy $ \a b -> func a == func b
 
 shiftRow :: Row -> Row
-shiftRow = take 4 . (++ repeat Nothing) . concatMap f . group . filter isJust
-  where f (x : y : xs) | x == y = (fmap (*2) x : xs); f r = r
+shiftRow = take 4 . (++ repeat (Tile Nothing 0 0)) . concatMap f . groupOn _value . filter (isJust . _value)
+  where f (x : y : xs) | (x ^. value) == (y ^. value) = ((over value (fmap (*2)) x) : xs); f r = r
 
-set x y val board = ix x . ix y .~ val $ board
 --------------------------------------------------------------------------------
-stepGame :: Float -> (Board, Stage) -> IO (Board, Stage)
+stepGame :: Float -> Board -> IO Board
 stepGame _ state = return state
