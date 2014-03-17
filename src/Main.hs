@@ -15,9 +15,14 @@ import Graphics.Rendering.OpenGL.GL.StateVar
 import Graphics.UI.GLUT (initialDisplayMode, DisplayMode(..))
 
 data Tile = Tile {
-              _value :: Maybe Int,
-              _tileX :: Int,
-              _tileY :: Int
+              _value    :: Maybe Int,
+              _tileX    :: Int,
+              _tileY    :: Int,
+              _newValue :: Maybe Int,
+              _newX     :: Int,
+              _newY     :: Int,
+              _scaleF    :: Float
+
               } deriving (Show, Eq)
 
 makeLenses ''Tile
@@ -34,18 +39,25 @@ a *** b = floor $ (fromIntegral a) ** (fromIntegral b)
 (!) :: Board -> (Int, Int) -> Tile
 board ! (x, y) = (board !! x) !! y
 
-tileWidth  = 107
-tileHeight = 107
-space      = 14
+tileWidth  = 100
+tileHeight = 100
+space      = 10
 boardWidth = tileWidth * 4 + space * 5
 
 initialBoard :: Board
-initialBoard = setPositions $ replicate 4 $ replicate 4 (Tile Nothing 0 0)
+initialBoard = setPositions $ replicate 4 $ replicate 4 (Tile Nothing 0 0 Nothing 0 0 1.0)
 
 setPositions :: Board -> Board
-setPositions board = for [0..3] $ \x ->
-                        for [0..3] $ \y -> set tileX ((x - 2) * (tileWidth + space)  + (space // 2)) $
-                                           set tileY ((y - 2) * (tileHeight + space) + (space // 2)) (board ! (x, y))
+setPositions board = setPositionsWith id id board
+    
+setPositionsWith :: (Int -> Int) -> (Int -> Int) -> Board -> Board
+setPositionsWith fx fy board = 
+    for [0..3] $ \x ->
+        for [0..3] $ \y -> setPosition_ x y
+  where setPosition_ x y = (board ! (x, y)) { _newX = (calcX x), _newY = (calcY y) }
+        calcX x = (fx ((x - 2) * (tileWidth + space)  + (space // 2)))
+        calcY y = (fy ((y - 2) * (tileHeight + space) + (space // 2)))
+
 convert :: Char -> Int
 convert 'a' = 10
 convert 'b' = 11
@@ -92,10 +104,13 @@ box w_ h_ = polygon [p1, p2, p3, p4]
 addRandomTile :: Board -> IO Board
 addRandomTile board = do
   -- Choose a random move
-  let plays = [ set (ix x . ix y . value) (Just 2) board
+  let plays = [ set (ix x . ix y . value) (Just 2) $
+                set (ix x . ix y . newValue) (Just 2) $
+                set (ix x . ix y . tileX) (tile ^. newX) $
+                set (ix x . ix y . tileY) (tile ^. newY) $ board
               | x <- [0..3]
               , y <- [0..3]
-              , Tile Nothing _ _ <- [board ! (x, y)]
+              , tile@(Tile Nothing _ _ Nothing _ _ _) <- [board ! (x, y)]
               ]
     
   (plays !!) <$> randomRIO (0, length plays - 1)
@@ -124,29 +139,40 @@ textFor tile = case tile ^. value of
 
 --------------------------------------------------------------------------------
 drawBoard :: Board -> IO Picture
-drawBoard board = return tiles
+drawBoard board = return $ grid <> tiles
  where
+  grid = mconcat
+    [ translate (fromIntegral $ (x - 2) * (tileWidth + space)  + (space // 2))
+                (fromIntegral $ (y - 2) * (tileHeight + space) + (space // 2)) $
+                (color (makeColor8 204 192 179 255) $ box tileWidth tileHeight)
+    | x <- [0..3]
+    , y <- [0..3]
+    ]
   tiles = mconcat
-    [ translate (fromIntegral $ tile ^. tileX)
-                (fromIntegral $ tile ^. tileY) $
-        (color (bgColor tile) $ box tileWidth tileHeight) <>
+    [ translate (fromIntegral $ (tile ^. tileX) - ((boxWidth - tileWidth) // 2))
+                (fromIntegral $ (tile ^. tileY) - ((boxHeight - tileHeight) // 2)) $
+        (color (bgColor tile) $ box boxWidth boxHeight) <>
           (scale (0.5) (0.5) $ translate (75.0) (50.0) $ textFor tile)
     | x <- [0..3]
     , y <- [0..3]
     , tile <- [board ! (x, y)]
+    , isJust (tile ^. value)
+    , s <- [tile ^. scaleF]
+    , boxWidth <- [(floor $ (fromIntegral tileWidth) * s)]
+    , boxHeight <- [(floor $ (fromIntegral tileHeight) * s)]
     ]
 
 on (EventKey (SpecialKey KeyLeft) Down _ _) board = do
-    liftM setPositions $ addRandomTile . transpose . map shiftRow . transpose $ board
+    addRandomTile . setPositions . transpose . map shiftRow . transpose $ board
 
 on (EventKey (SpecialKey KeyRight) Down _ _) board = do
-    liftM setPositions $ addRandomTile . transpose . map (reverse . shiftRow . reverse) . transpose $ board
+    addRandomTile . setPositions . transpose . map (reverse . shiftRow . reverse) . transpose $ board
 
 on (EventKey (SpecialKey KeyUp) Down _ _) board = do
-    liftM setPositions $ addRandomTile . map (reverse . shiftRow . reverse) $ board
+    addRandomTile . setPositions . map (reverse . shiftRow . reverse) $ board
 
 on (EventKey (SpecialKey KeyDown) Down _ _) board = do
-    liftM setPositions $ addRandomTile . map shiftRow $ board
+    addRandomTile . setPositions . map shiftRow $ board
 
 on _ board = return board
 
@@ -154,9 +180,38 @@ for = flip map
 groupOn func = groupBy $ \a b -> func a == func b
 
 shiftRow :: Row -> Row
-shiftRow = take 4 . (++ repeat (Tile Nothing 0 0)) . concatMap f . groupOn _value . filter (isJust . _value)
-  where f (x : y : xs) | (x ^. value) == (y ^. value) = ((over value (fmap (*2)) x) : xs); f r = r
+shiftRow = take 4 . (++ repeat (Tile Nothing 0 0 Nothing 0 0 1.0)) . concatMap f . groupOn _value . filter (isJust . _value)
+  where f (x : y : xs) | (x ^. value) == (y ^. value) = ((set scaleF 1.5 $ set newValue ((*2) <$> (x ^. value)) x) : (set newValue Nothing y)  : xs); f r = r
+
+speed = 5
+
+addX tile
+    | tile ^. tileX < tile ^. newX = over tileX (+speed) tile
+    | tile ^. tileX > tile ^. newX = over tileX (subtract speed) tile
+    | otherwise = tile
+
+addY tile
+    | tile ^. tileY < tile ^. newY = over tileY (+speed) tile
+    | tile ^. tileY > tile ^. newY = over tileY (subtract speed) tile
+    | otherwise = tile
+
+checkValue tile
+    | (tile ^. tileX == tile ^. newX) && (tile ^. tileY == tile ^. newY) = 
+        if (isNothing $ tile ^. newValue)
+          then set value Nothing tile
+          -- else if (tile ^. newValue /= tile ^. value)
+          --       then set scaleF (1.5) tile
+          else tile
+    | otherwise = tile
+
+checkScale tile
+    | tile ^. scaleF <= 1.0 = set value (tile ^. newValue) tile
+    | otherwise = over scaleF (subtract 0.1) tile
 
 --------------------------------------------------------------------------------
 stepGame :: Float -> Board -> IO Board
-stepGame _ state = return state
+stepGame _ board = do
+    let newBoard =
+          for [0..3] $ \x ->
+            for [0..3] $ \y -> checkScale . checkValue . addY . addX $ (board ! (x, y))
+    return newBoard
