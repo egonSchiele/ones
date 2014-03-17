@@ -14,14 +14,22 @@ import Graphics.Rendering.OpenGL.GL.StateVar
 import Graphics.UI.GLUT (initialDisplayMode, DisplayMode(..))
 
 type Tile = Int
-type Board = [[Maybe Tile]]
+type Row = [Maybe Tile]
+type Board = [Row]
 data Stage = Play | Animation deriving (Show, Eq)
+
+(//) :: Int -> Int -> Int
+a // b = floor $ (fromIntegral a) / (fromIntegral b)
 
 (!) :: Board -> (Int, Int) -> Maybe Tile
 board ! (x, y) = (board !! x) !! y
 
-tileWidth = 100
-tileHeight = 100
+tileWidth = 107
+tileHeight = 107
+
+space = 14
+
+boardWidth = tileWidth * 4 + space * 5
 
 initialBoard :: Board
 initialBoard = replicate 4 (replicate 4 Nothing)
@@ -50,7 +58,7 @@ main = do
   initialDisplayMode $~ (Multisampling:) -- supposed to anti-alias, doesn't work very well
   startingBoard <- return initialBoard >>= addRandomTile >>= addRandomTile
   playIO
-    (InWindow "ones" (500, 500) (1, 1))
+    (InWindow "ones" (boardWidth, boardWidth) (1, 1))
     (makeColorHex "bbada0")
     30
     (startingBoard, Play)
@@ -80,28 +88,39 @@ addRandomTile board = do
   newBoard <- (plays !!) <$> randomRIO (0, length plays - 1)
   return newBoard
 
-tileColor 2 = makeColorHex "eee4da"
-tileColor 4 = makeColorHex "ede0c8"
-tileColor 8 = makeColorHex "f2b179"
-tileColor 16 = makeColorHex "f59563"
-tileColor 32 = makeColorHex "f67c5f"
-tileColor 64 = makeColorHex "f65e3b"
-tileColor 128 = makeColorHex "edcf72"
-tileColor 256 = makeColorHex "edcc61"
-tileColor _ = white
+bgColor Nothing     = makeColor8 204 192 179 255
+bgColor (Just 2)    = makeColorHex "eee4da"
+bgColor (Just 4)    = makeColorHex "ede0c8"
+bgColor (Just 8)    = makeColorHex "f2b179"
+bgColor (Just 16)   = makeColorHex "f59563"
+bgColor (Just 32)   = makeColorHex "f67c5f"
+bgColor (Just 64)   = makeColorHex "f65e3b"
+bgColor (Just 128)  = makeColorHex "edcf72"
+bgColor (Just 256)  = makeColorHex "edcc61"
+bgColor (Just 512)  = makeColorHex "edc850"
+bgColor (Just 1024) = makeColorHex "edc53f"
+bgColor (Just 2048) = makeColorHex "edc22e"
+bgColor _           = white
+
+fontColor (Just x)
+  | x == 2 || x == 4 = makeColorHex "776e65"
+  | otherwise        = makeColorHex "f9f6f2"
+
+textFor Nothing = text ""
+textFor caption@(Just x) = color (fontColor caption) $ text (show x)
 
 --------------------------------------------------------------------------------
 drawBoard :: (Board, Stage) -> IO Picture
 drawBoard (board, Play) = return tiles
  where
   tiles = mconcat
-    [ translate (fromIntegral $ (x - 2) * tileWidth)
-                (fromIntegral $ (y - 2) * tileHeight) $ 
-        (color (tileColor tile) $ box tileWidth tileHeight) <>
-          (scale (0.5) (0.5) $ color black $ translate (50.0) (50.0) $ text (show tile))
+    [ translate (fromIntegral $ (x - 2) * (tileWidth + space)  + (space // 2))
+                (fromIntegral $ (y - 2) * (tileHeight + space) + (space // 2)) $ 
+        (color (bgColor tile) $ box tileWidth tileHeight) <>
+          (scale (0.5) (0.5) $ translate (75.0) (50.0) $ textFor tile)
     | x <- [0..3]
     , y <- [0..3]
-    , Just tile <- [board ! (x, y)]
+    , tile <- [board ! (x, y)]
     ]
 
 double Nothing = Nothing
@@ -113,22 +132,22 @@ handleInput (EventKey (Char 'a') Up _ (x, y)) (board, Play) = do
     return $ (newBoard, Play)
 
 handleInput (EventKey (SpecialKey KeyLeft) Up _ (x, y)) (board, Play) = do
-    let newBoard = foldl moveLeft board [(x, y) | x <- [1..3], y <- [0..3], Just tile <- [board ! (x, y)]]
+    let newBoard = transpose . map shiftRow . transpose $ board
     newBoard2 <- addRandomTile newBoard
     return (newBoard2, Play)
 
 handleInput (EventKey (SpecialKey KeyRight) Up _ (x, y)) (board, Play) = do
-    let newBoard = foldl moveRight board [(x, y) | x <- [2, 1, 0], y <- [0..3], Just tile <- [board ! (x, y)]]
+    let newBoard = transpose . map (reverse . shiftRow . reverse) . transpose $ board
     newBoard2 <- addRandomTile newBoard
     return (newBoard2, Play)
 
 handleInput (EventKey (SpecialKey KeyUp) Up _ (x, y)) (board, Play) = do
-    let newBoard = foldl moveUp board [(x, y) | x <- [0..3], y <- [2, 1, 0], Just tile <- [board ! (x, y)]]
+    let newBoard = map (reverse . shiftRow . reverse) board
     newBoard2 <- addRandomTile newBoard
     return (newBoard2, Play)
 
 handleInput (EventKey (SpecialKey KeyDown) Up _ (x, y)) (board, Play) = do
-    let newBoard = foldl moveDown board [(x, y) | x <- [0..3], y <- [1..3], Just tile <- [board ! (x, y)]]
+    let newBoard = map shiftRow board
     newBoard2 <- addRandomTile newBoard
     return (newBoard2, Play)
 
@@ -136,36 +155,9 @@ handleInput _ board = return board
 
 for = flip map
 
-moveLeft :: Board -> (Int, Int) -> Board
-moveLeft board (x, y) = move board (x, y) (newX, y)
-  where newX      = fromMaybe 0 $ find validX [x, x-1 .. 0]
-        validX x_ = (x_ /= x && board ! (x_, y) == board ! (x, y)) ||
-                      (x_ > 0 && (board ! (x_-1, y) /= board ! (x, y)) && (isJust $ board ! (x_-1, y)))
-
-moveRight :: Board -> (Int, Int) -> Board
-moveRight board (x, y) = move board (x, y) (newX, y)
-  where newX      = fromMaybe 3 $ find validX [x, x+1 .. 3]
-        validX x_ = (x_ /= x && board ! (x_, y) == board ! (x, y)) ||
-                      (x_ < 3 && (board ! (x_+1, y) /= board ! (x, y)) && (isJust $ board ! (x_+1, y)))
-
-moveUp :: Board -> (Int, Int) -> Board
-moveUp board (x, y) = move board (x, y) (x, newY)
-  where newY      = fromMaybe 3 $ find validY [y, y+1 .. 3]
-        validY y_ = (y_ /= y && board ! (x, y_) == board ! (x, y)) ||
-                      (y_ < 3 && (board ! (x, y_+1) /= board ! (x, y)) && (isJust $ board ! (x, y_+1)))
-
-moveDown :: Board -> (Int, Int) -> Board
-moveDown board (x, y) = move board (x, y) (x, newY)
-  where newY      = fromMaybe 0 $ find validY [y, y-1 .. 0]
-        validY y_ = (y_ /= y && board ! (x, y_) == board ! (x, y)) ||
-                      (y_ > 0 && (board ! (x, y_-1) /= board ! (x, y)) && (isJust $ board ! (x, y_-1)))
-
-move board (x, y) (newX, newY)
-  -- we aren't going anywhere
-  | newX == x && newY == y = board
-  -- they are both the same, combine
-  | (board ! (newX, newY)) == (board ! (x, y)) = set x y Nothing $ set newX newY (double $ board ! (newX, newY)) board
-  | otherwise = set x y Nothing $ set newX (newY) (board ! (x, y)) board
+shiftRow :: Row -> Row
+shiftRow = take 4 . (++ repeat Nothing) . concatMap f . group . filter isJust
+  where f (x : y : xs) | x == y = (fmap (*2) x : xs); f r = r
 
 set x y val board = ix x . ix y .~ val $ board
 --------------------------------------------------------------------------------
