@@ -48,7 +48,11 @@ hexToInt :: String -> Int
 hexToInt (x:[]) = convert x
 hexToInt str@(x:xs) = 16 *** (length str - 1) * (convert x) + hexToInt xs
 
-makeColorHex (r1:r2:g1:g2:b1:b2:[]) = makeColor8 (hexToInt [r1, r2]) (hexToInt [g1, g2]) (hexToInt [b1, b2]) 255
+makeColorHex (r1:r2:g1:g2:b1:b2:[]) = makeColor8
+                                        (hexToInt [r1, r2])
+                                        (hexToInt [g1, g2])
+                                        (hexToInt [b1, b2])
+                                        255
 
 --------------------------------------------------------------------------------
 main :: IO ()
@@ -61,7 +65,7 @@ main = do
     30
     (startingBoard, Play)
     drawBoard
-    handleInput
+    on
     stepGame
 
 box :: Int -> Int -> Picture
@@ -124,23 +128,23 @@ drawBoard (board, Play) = return tiles
 double Nothing = Nothing
 double (Just x) = Just $ x*2
 
-handleInput (EventKey (SpecialKey KeyLeft) Up _ (x, y)) (board, Play) = do
+on (EventKey (SpecialKey KeyLeft) Down _ _) (board, Play) = do
     newBoard <- addRandomTile . transpose . map shiftRow . transpose $ board
     return (newBoard, Play)
 
-handleInput (EventKey (SpecialKey KeyRight) Up _ (x, y)) (board, Play) = do
+on (EventKey (SpecialKey KeyRight) Down _ _) (board, Play) = do
     newBoard <- addRandomTile . transpose . map (reverse . shiftRow . reverse) . transpose $ board
     return (newBoard, Play)
 
-handleInput (EventKey (SpecialKey KeyUp) Up _ (x, y)) (board, Play) = do
+on (EventKey (SpecialKey KeyUp) Down _ _) (board, Play) = do
     newBoard <- addRandomTile . map (reverse . shiftRow . reverse) $ board
     return (newBoard, Play)
 
-handleInput (EventKey (SpecialKey KeyDown) Up _ (x, y)) (board, Play) = do
+on (EventKey (SpecialKey KeyDown) Down _ _) (board, Play) = do
     newBoard <- addRandomTile . map shiftRow $ board
     return (newBoard, Play)
 
-handleInput _ board = return board
+on _ board = return board
 
 for = flip map
 
