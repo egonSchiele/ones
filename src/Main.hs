@@ -13,29 +13,27 @@ import Graphics.Rendering.OpenGL (multisample, Capability(..))
 import Graphics.Rendering.OpenGL.GL.StateVar
 import Graphics.UI.GLUT (initialDisplayMode, DisplayMode(..))
 
-type Tile = Int
-type Row = [Maybe Tile]
+type Tile  = Int
+type Row   = [Maybe Tile]
 type Board = [Row]
 data Stage = Play | Animation deriving (Show, Eq)
 
 (//) :: Int -> Int -> Int
 a // b = floor $ (fromIntegral a) / (fromIntegral b)
 
+(***) :: Int -> Int -> Int
+a *** b = floor $ (fromIntegral a) ** (fromIntegral b)
+
 (!) :: Board -> (Int, Int) -> Maybe Tile
 board ! (x, y) = (board !! x) !! y
 
-tileWidth = 107
+tileWidth  = 107
 tileHeight = 107
-
-space = 14
-
+space      = 14
 boardWidth = tileWidth * 4 + space * 5
 
 initialBoard :: Board
 initialBoard = replicate 4 (replicate 4 Nothing)
-
-(***) :: Int -> Int -> Int
-a *** b = floor $ (fromIntegral a) ** (fromIntegral b)
 
 convert :: Char -> Int
 convert 'a' = 10
@@ -126,30 +124,21 @@ drawBoard (board, Play) = return tiles
 double Nothing = Nothing
 double (Just x) = Just $ x*2
 
-handleInput :: Event -> (Board, Stage) -> IO (Board, Stage)
-handleInput (EventKey (Char 'a') Up _ (x, y)) (board, Play) = do
-    newBoard <- addRandomTile board
-    return $ (newBoard, Play)
-
 handleInput (EventKey (SpecialKey KeyLeft) Up _ (x, y)) (board, Play) = do
-    let newBoard = transpose . map shiftRow . transpose $ board
-    newBoard2 <- addRandomTile newBoard
-    return (newBoard2, Play)
+    newBoard <- addRandomTile . transpose . map shiftRow . transpose $ board
+    return (newBoard, Play)
 
 handleInput (EventKey (SpecialKey KeyRight) Up _ (x, y)) (board, Play) = do
-    let newBoard = transpose . map (reverse . shiftRow . reverse) . transpose $ board
-    newBoard2 <- addRandomTile newBoard
-    return (newBoard2, Play)
+    newBoard <- addRandomTile . transpose . map (reverse . shiftRow . reverse) . transpose $ board
+    return (newBoard, Play)
 
 handleInput (EventKey (SpecialKey KeyUp) Up _ (x, y)) (board, Play) = do
-    let newBoard = map (reverse . shiftRow . reverse) board
-    newBoard2 <- addRandomTile newBoard
-    return (newBoard2, Play)
+    newBoard <- addRandomTile . map (reverse . shiftRow . reverse) $ board
+    return (newBoard, Play)
 
 handleInput (EventKey (SpecialKey KeyDown) Up _ (x, y)) (board, Play) = do
-    let newBoard = map shiftRow board
-    newBoard2 <- addRandomTile newBoard
-    return (newBoard2, Play)
+    newBoard <- addRandomTile . map shiftRow $ board
+    return (newBoard, Play)
 
 handleInput _ board = return board
 
